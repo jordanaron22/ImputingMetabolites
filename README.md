@@ -1,7 +1,7 @@
-## ImputingMetabolites
+# ImputingMetabolites
 Compare R2 Values of Different Imputation Methods on Simulated Metabolite Data
 
-# Sample R code
+## Sample R code
 
 ```{r}
 #######
@@ -62,9 +62,4 @@ if (length(factor2) == 1){
 }
 
 PlotR2MultFact(r2.df)
-
-# block_vals <- paste0(low_val_1*10,high_val_1*10,low_val_2*10,high_val_2*10,"MICE")
-# if (!dir.exists(block_vals)) {dir.create(block_vals)}
-# name <- paste0(block_vals,"/R24FactGrid",block_vals,"Seed",seed,".rda",sep="")
-# save(r2.df, file = name)
 ```
