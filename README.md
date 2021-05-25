@@ -42,17 +42,21 @@ Choose either 1 factor or 2 factors, not both.
 ###############################################
 
 #######1 Factor #######
+low_val_1 <- 0.1
+high_val_1 <- 0.4
+low_val_2 <- 0
+high_val_2 <- 0
+
 #Correlation matrices used to generate data
 m_0 <- CreateBlockMatrix(num_of_metabos,.6,.6,1,10)
-m_1 <- CreateBlockMatrix(num_of_metabos,.1,.4,0,10)
-m_2 <- CreateBlockMatrix(num_of_metabos,0,0,0,5)
-m_3 <- CreateBlockMatrix(num_of_metabos,.0,.0,0,4)
+m_1 <- CreateBlockMatrix(num_of_metabos,low_val_1,high_val_1,0,10)
+m_2 <- CreateBlockMatrix(num_of_metabos,0,0,0,10)
+m_3 <- CreateBlockMatrix(num_of_metabos,.0,.0,0,10)
 #Setting factor2 and factor3 to 0 reduces the data generation to a 1 factor model
 factor1 <- seq(-1,1,.25)
 factor2 <- 0
 factor3 <- 0
 factor_mat <- expand.grid(factor1,factor2,factor3)
-
 ```
 
 ###### 2.2.1 2 Factors
@@ -63,11 +67,16 @@ factor_mat <- expand.grid(factor1,factor2,factor3)
 ###############################################
 
 #######2 Factor #######
+low_val_1 <- 0.1
+high_val_1 <- 0.4
+low_val_2 <- 0
+high_val_2 <- 0.3
+
 #Correlation matrices used to generate data
 m_0 <- CreateBlockMatrix(num_of_metabos,.6,.6,1,10)
-m_1 <- CreateBlockMatrix(num_of_metabos,.1,.4,0,10)
+m_1 <- CreateBlockMatrix(num_of_metabos,low_val_1,high_val_1,0,5)
 m_1[c(6:10,16:20),c(6:10,16:20)] <- 0
-m_2 <- CreateBlockMatrix(num_of_metabos,0,.3,0,5)
+m_2 <- CreateBlockMatrix(num_of_metabos,low_val_2,high_val_2,0,5)
 m_2[c(1:5,11:15),c(1:5,11:15)] <- 0
 m_3 <- CreateBlockMatrix(num_of_metabos,.0,.0,0,4)
 factor1 <- seq(-1,1,.25)
@@ -148,4 +157,27 @@ if (length(factor2) == 1){
 #PlotR2MultFact produces boxplots for each method
 PlotR2MultFact(r2.df)
 
+```
+
+### Scripting 
+
+For scripting I read in the uniform distribution values for in the swarm file. To do this I include this block of code before everything else 
+
+```{r}
+args <- commandArgs(trailingOnly=T)
+seed <- as.numeric(args[1])
+set.seed(seed)
+low_val_1 <- as.numeric(args[2])
+high_val_1 <- as.numeric(args[3])
+low_val_2 <- as.numeric(args[4])
+high_val_2 <- as.numeric(args[5])
+```
+
+Then to save the files I include this block at the very end, which saves all of the r2.df outputs individually in a folder named after the inputs for the uniform distribution.
+
+```{r}
+block_vals <- paste0(low_val_1*10,high_val_1*10,low_val_2*10,high_val_2*10)
+if (!dir.exists(block_vals)) {dir.create(block_vals)}
+name <- paste0(block_vals,"/R24FactGrid",block_vals,"Seed",seed,".rda",sep="")
+save(r2.df, file = name)
 ```
