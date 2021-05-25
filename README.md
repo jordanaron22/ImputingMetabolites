@@ -1,7 +1,17 @@
 # ImputingMetabolites
 Compare R2 Values of Different Imputation Methods on Simulated Metabolite Data
 
-## Sample R code
+## R code
+
+### 1\. Installation 
+
+```{r}
+install.packages("devtools")
+devtools::install_github("jordanaron22/ImputingMetabolites")
+library(ImputingMetabolites)
+```
+
+### 2\. Example
 
 ```{r}
 ####### Initial Variables
