@@ -13,6 +13,8 @@ library(ImputingMetabolites)
 
 ### 2\. Example
 
+#### 2.1 Initial User Defined Variables
+
 ```{r}
 ####### Initial Variables
 #Assortment of user defined variables
@@ -20,25 +22,65 @@ library(ImputingMetabolites)
 #These are the *default* settings that have been tested to work
 num_of_metabos <- 20
 sample_size <- 1000
-num_to_remove <- 5
+num_to_remove <- 4
+#Set to 0 for most accurate MICE prediction
+#Takes more time so I often set it to 20 for general debugging
 num_of_predictors <- 20
 
+```
+
+##### 2.2 Define Number of Factors
+
+Choose either 1 factor or 2 factors, not both.
+
+###### 2.2.1 1 Factor
+
+```{r}
+
+###############################################
+###Either run 1 Factor or 2 Factors, not both##
+###############################################
+
+#######1 Factor #######
 #Correlation matrices used to generate data
 m_0 <- CreateBlockMatrix(num_of_metabos,.6,.6,1,10)
-m_1 <- CreateBlockMatrix(num_of_metabos,.3,.4,0,5)
+m_1 <- CreateBlockMatrix(num_of_metabos,.1,.4,0,10)
+m_2 <- CreateBlockMatrix(num_of_metabos,0,0,0,5)
+m_3 <- CreateBlockMatrix(num_of_metabos,.0,.0,0,4)
+#Setting factor2 and factor3 to 0 reduces the data generation to a 1 factor model
+factor1 <- seq(-1,1,.25)
+factor2 <- 0
+factor3 <- 0
+factor_mat <- expand.grid(factor1,factor2,factor3)
+
+```
+
+###### 2.2.1 1 Factors
+
+```{r}
+###############################################
+###Either run 1 Factor or 2 Factors, not both##
+###############################################
+
+#######2 Factor #######
+#Correlation matrices used to generate data
+m_0 <- CreateBlockMatrix(num_of_metabos,.6,.6,1,10)
+m_1 <- CreateBlockMatrix(num_of_metabos,.1,.4,0,10)
 m_1[c(6:10,16:20),c(6:10,16:20)] <- 0
 m_2 <- CreateBlockMatrix(num_of_metabos,0,.3,0,5)
 m_2[c(1:5,11:15),c(1:5,11:15)] <- 0
 m_3 <- CreateBlockMatrix(num_of_metabos,.0,.0,0,4)
 factor1 <- seq(-1,1,.25)
-#If following line is run, data is generated according to 1 factor model
-factor2 <- 0
-# #Uncomment following line to generate data according to 2 factor model
-# factor2 <- seq(-1,1,.25)
+factor2 <- seq(-1,1,.25)
 factor3 <- 0
 #Similarly factor 3 can be changed to non-zero values to generate data according to a 3 factor model
 factor_mat <- expand.grid(factor1,factor2,factor3)
+#######
+```
 
+##### 2.3 Imputation and Analysis Pipeline
+
+```{r}
 ######Data generation, imputation, and analysis pipeline
 # Creates observed and true data and observed and true correlation matrices
 CorrelationAndData <- CreateCorrelation(m_0,m_1,m_2,m_3,
@@ -100,4 +142,5 @@ if (length(factor2) == 1){
 
 #PlotR2MultFact produces boxplots for each method
 PlotR2MultFact(r2.df)
+
 ```
