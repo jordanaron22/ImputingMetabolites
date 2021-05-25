@@ -1,0 +1,12 @@
+Package: ImputingMetabolites
+Type: Package
+Title: Compares R2 Value of Different Metabolite Imputation Methods
+Version: 0.1.0
+Author: Jordan Aron
+Maintainer: <aron0064@umn.edu>
+Description: Pipeline to calculate and compare R2 values of different imputation methods. Starts with specified correlation matrices and up to 3 factors. Then generates metabolite data according to factor model and correlation. Some amount of metabolites are removed. Missing data is imputed with MICE and then factor analysis is run with 1-4 factors. At the end produces a data frame which compares the R2 value of each metabolite by factor and method. Methods examined are: ignoring study heterogeneity, MICE, MICE and factor analysis  with 1-4 factors, and true correlation.
+License: CC0
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.1
+Imports: MASS, ggplot2, stats, mice, Matrix, rlist, psych, reshape2
