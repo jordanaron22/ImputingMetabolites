@@ -55,7 +55,7 @@ factor_mat <- expand.grid(factor1,factor2,factor3)
 
 ```
 
-###### 2.2.1 1 Factors
+###### 2.2.1 2 Factors
 
 ```{r}
 ###############################################
