@@ -133,7 +133,12 @@ imputed.df <- ImputeMissingMetabolites(sample_size,num_of_metabos,num_to_remove,
 #Calculates R2 values from imputed.df
 #Output is another data frame, easy to work with in ggplot
 r2.df <- CalculateR2(imputed.df,factor_mat)
+```
 
+
+##### 2.4 Visualization
+
+```{r}
 #Plots R2 values in line plot and boxplot
 #First PlotR2OneFact produces a lineplot and should only be used to visualize when data is generated under 1 factor
 if (length(factor2) == 1){
