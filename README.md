@@ -1,7 +1,7 @@
 # ImputingMetabolites
 Compare R2 values of different imputation methods on simulated metabolite data. This repository mainly contains the r package described in the read me. Two additional folders, scripting and markdown, are also included. Scripting contains three files: an r script that will run this code on the hpc, a swarm file, and a markdown that analyzes the output. Markdown contains past markdown documents that I've presented. 
 
-## R code
+## R Package
 
 ### 1\. Installation 
 
