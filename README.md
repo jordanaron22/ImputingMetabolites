@@ -23,8 +23,10 @@ library(ImputingMetabolites)
 num_of_metabos <- 20
 sample_size <- 1000
 num_to_remove <- 4
-#Set to 0 for most accurate MICE prediction
+#Set num_of_predictors 0 for most accurate MICE prediction
 #Takes more time so I often set it to 20 for general debugging
+#Determines amount of other values MICE considers during its imputation
+#Set to 0 uses quickpred() function
 num_of_predictors <- 20
 
 ```
@@ -161,7 +163,7 @@ PlotR2MultFact(r2.df)
 
 ### 3\. Scripting 
 
-For scripting I read in the uniform distribution values for in the swarm file. To do this I include this block of code before everything else 
+For scripting, I'm not sure how installing non CRAN packages work, so I would just create a script file with the functions. I read in the uniform distribution values for in the swarm file. To do this I include this block of code before everything else 
 
 ```{r}
 args <- commandArgs(trailingOnly=T)
@@ -190,4 +192,4 @@ SwarmGenerator(500,"ComparingImpMethods.swarm","ComparingImpMethods.R",.3,.4,0,.
 
 This will generate a swarm file named "ComparingImpMethods.swarm" that runs 500 instances of the R file named "ComparingImpMethods.R" with seeds 1-500. From the previous line, low_val_1 = .3, high_val_1=.4, low_val_2 = 0, and high_val_2 = .2. It will save r2.df from each instance into a folder named 3402.
 
-Check the wiki tab for a sample script.
+Sample script can be found in the scripting folder.
