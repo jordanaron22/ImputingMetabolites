@@ -159,7 +159,7 @@ PlotR2MultFact(r2.df)
 
 ```
 
-### Scripting 
+### 3\. Scripting 
 
 For scripting I read in the uniform distribution values for in the swarm file. To do this I include this block of code before everything else 
 
