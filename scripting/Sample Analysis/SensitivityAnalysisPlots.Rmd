@@ -1,0 +1,159 @@
+---
+title: "Comparing R^2 Values of Different Correlation Structure by Factor Ignoring Heterogeneity"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+To use this document place in a folder with folders of data (e.g. place in folder with 3403 and 1400) and nothing else (might have to play around with setwd() too). The large code chunk will go through each folder of data. If theres an error, check to make sure file_list is a list of folder names (i.e. if you knit this document an html file will show up in the folder). Each folder of data will produce one plot, located in plot_list. At the end, manually call plot each element of plot list (plot_list[[i]] where i as an index). Will have to do some title adjustments 
+
+```{r, include = FALSE}
+
+library(gtools)
+library(MASS)
+library(corrplot)
+library(ggcorrplot)
+library(Rlab)
+library(matrixcalc)
+library(rlist)
+library(ggplot2)
+library(Matrix)
+require(gridExtra)
+library(grid)
+library(Hmisc)
+library(knitr)
+library(latex2exp)
+library(reshape2)
+library(mice)
+library(psych)
+library(ggpubr)
+
+PlotR2MultFact <- function(r2.df){
+  
+  p <- ggplot(r2.df, aes(y = r2.df$R2, x = r2.df$Type)) +
+    geom_boxplot() +
+    scale_x_discrete(labels=c("True Correlation","One Factor","Two Factors","Three Factors","Four Factors","Mice","Ignoring Heterogeneity")) +
+    theme_classic() +
+    theme(axis.text.x = element_text(angle = 45,hjust = 1)) +
+    xlab("Imputation Type")
+  
+  return(p)
+}
+
+
+PlotR2OneFact <- function(r2.df){
+  p <- ggplot(r2.df, aes(x=r2.df$Factor1, y=r2.df$R2, group=r2.df$Type)) +
+    geom_line(aes(color = r2.df$Type))+
+    geom_point(aes(color = r2.df$Type)) +
+    scale_color_discrete(name = "", labels = c("True Imputed  \n vs. True Value",
+                                               "Factor1 Imputed \n vs True Value",
+                                               "Factor2 Imputed \n vs True Value",
+                                               "Factor3 Imputed \n vs True Value",
+                                               "Factor4 Imputed \n vs True Value",
+                                               "Mice Imputed \n vs True Value",
+                                               "Observed Imputed \n vs. True Value")) +
+    theme_bw() +
+    theme(legend.key.size = unit(1.5, "cm"),
+          legend.key.width = unit(0.5,"cm"))
+  return(p)
+}
+
+plot_list <- list()
+file_list <- list.files()[1:(length(list.files()) - 1)]
+#If you end up including a knit html file in this folder use this line instead
+# file_list <- list.files()[1:(length(list.files()) - 2)]
+
+for (folder_ind in 1:length(file_list)){
+  folder_name <- file_list[folder_ind]
+  setwd(folder_name)
+  
+  low_val_1 <- as.double(substr(folder_name,1,1)) / 10
+  high_val_1 <- as.double(substr(folder_name,2,2)) / 10
+  low_val_2 <- as.double(substr(folder_name,3,3)) / 10
+  high_val_2 <- as.double(substr(folder_name,4,4)) / 10
+  
+  data_frame_name_list <- list.files()[1:(length(list.files()) -0)]
+  data_frame_name_list <- mixedsort(sort(data_frame_name_list))
+  
+  data_frame_list <- list()
+  for (i in 1:length(data_frame_name_list)){
+    load(data_frame_name_list[i])
+    data_frame_list <- list.append(data_frame_list,r2.df)
+  }
+  
+  big_data_frame <- data_frame_list[[1]]
+  
+  for (i in 2:length(data_frame_list)){
+    big_data_frame <- rbind(big_data_frame,data_frame_list[[i]])
+  }
+  
+  factor1 <- unique(big_data_frame$Factor1)
+  factor2 <- unique(big_data_frame$Factor2)
+  type <- as.character(unique(big_data_frame$Type))
+  
+  median.df <- data.frame(R2 = double(),
+                          Factor1 = character(),
+                          Factor2 = character(),
+                          Type = character(),
+                          stringsAsFactors = F)
+  
+  for (i in factor1){
+    for (j in factor2){
+      for (k in type){
+        med_val <- median(big_data_frame[big_data_frame$Factor1 == i & big_data_frame$Factor2 == j & big_data_frame$Type == k,]$R2)
+        to_add <- c(med_val,i,j,k)
+        median.df <- rbind(median.df,to_add)
+      }
+    }
+  }
+  
+  colnames(median.df) <- c("R2","Factor1","Factor2","Type")
+  
+  median.df$Type <- factor(median.df$Type,
+                              levels = c("TrueIvsTrueV","FactI1vsTrueV", "FactI2vsTrueV", "FactI3vsTrueV","FactI4vsTrueV", "MiceIvsTrueV", "ObsIvsTrueV"))
+  median.df$R2 <- as.double(median.df$R2)
+  
+  #Chooses which plot based on number of factor
+  #Can do multifactor plot when only one factor, just hardcode it
+  if (length(factor2) > 1){
+    #If analyzing multi factor data use this plot
+    p <- PlotR2MultFact(median.df) + 
+      ggtitle("R2 Values by Imputation Type. Two Cross Prod Factors from -1 to 1 by .25",
+              subtitle = paste0("M_1=0.6 with Block Size 10 
+              M_2 between ",low_val_1," and ",high_val_1," with block size 5, number 1 and 3
+              M_3 between ",low_val_2," and ",high_val_2," with block size 5, number 2 and 4"))
+  } else {
+    #If analyzing single factor data use this
+    
+    median.df$Factor1 <- factor(median.df$Factor1,
+                              levels = c(factor1))
+    
+    p <- PlotR2OneFact(median.df) + 
+      ggtitle("R2 Values by Imputation Type. Two Cross Prod Factors from -1 to 1 by .25",
+              subtitle = paste0("M_1=0.6 with Block Size 10 
+              M_2 between ",low_val_1," and ",high_val_1," with block size 5, number 1 and 3
+              M_3 between ",low_val_2," and ",high_val_2," with block size 5, number 2 and 4"))
+  }
+    
+  plot_list[[folder_ind]] <- p
+  
+  setwd("..")
+  
+}
+```
+
+```{r,fig.height=4,fig.width=4}
+# #ggplot act weird when put in a list and iterated thru with a for loop
+# #just manually call each element in plot_list to print the plots
+
+plot_list[[1]]
+plot_list[[2]]
+```
+
+
+
+
+
+
