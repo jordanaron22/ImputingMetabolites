@@ -189,3 +189,5 @@ SwarmGenerator(500,"ComparingImpMethods.swarm","ComparingImpMethods.R",.3,.4,0,.
 ```
 
 This will generate a swarm file named "ComparingImpMethods.swarm" that runs 500 instances of the R file named "ComparingImpMethods.R" with seeds 1-500. From the previous line, low_val_1 = .3, high_val_1=.4, low_val_2 = 0, and high_val_2 = .2. It will save r2.df from each instance into a folder named 3402.
+
+Check the wiki tab for a sample script.
