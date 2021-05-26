@@ -181,3 +181,11 @@ if (!dir.exists(block_vals)) {dir.create(block_vals)}
 name <- paste0(block_vals,"/R24FactGrid",block_vals,"Seed",seed,".rda",sep="")
 save(r2.df, file = name)
 ```
+
+Finally, to generate the swarm file run 
+
+```{r}
+SwarmGenerator(500,"ComparingImpMethods.swarm","ComparingImpMethods.R",.3,.4,0,.2)
+```
+
+This will generate a swarm file named "ComparingImpMethods.swarm" that runs 500 instances of the R file named "ComparingImpMethods.R" with seeds 1-500. From the previous line, low_val_1 = .3, high_val_1=.4, low_val_2 = 0, and high_val_2 = .2. It will save r2.df from each instance into a folder named 3402.
