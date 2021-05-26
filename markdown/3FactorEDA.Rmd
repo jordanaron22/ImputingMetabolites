@@ -1,0 +1,474 @@
+---
+title: "3FactorEDA"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+
+library(gtools)
+library(MASS)
+library(corrplot)
+library(ggcorrplot)
+library(Rlab)
+library(matrixcalc)
+library(rlist)
+library(ggplot2)
+library(Matrix)
+require(gridExtra)
+library(grid)
+library(Hmisc)
+library(knitr)
+library(latex2exp)
+library(reshape2)
+library(mice)
+library(psych)
+library(ggpubr)
+
+Vec2Cor <- function(vector,num_of_metabos){
+  corr_mat <- matrix(0,num_of_metabos,num_of_metabos)
+  corr_mat[upper.tri(corr_mat, diag=FALSE)] <- vector
+  corr_mat <- corr_mat + t(corr_mat)
+  diag(corr_mat) <- 1
+  return(corr_mat)
+}
+
+```
+
+```{r}
+
+setwd("3403")
+folder_name <- "3403"
+low_val_1 <- as.double(substr(folder_name,1,1)) / 10
+high_val_1 <- as.double(substr(folder_name,2,2)) / 10
+low_val_2 <- as.double(substr(folder_name,3,3)) / 10
+high_val_2 <- as.double(substr(folder_name,4,4)) / 10
+
+data_frame_name_list <- list.files()[1:(length(list.files()) -0)]
+data_frame_name_list <- mixedsort(sort(data_frame_name_list))
+
+data_frame_list <- list()
+for (i in 1:length(data_frame_name_list)){
+  load(data_frame_name_list[i])
+  data_frame_list <- list.append(data_frame_list,r2.df)
+}
+
+big_data_frame <- data_frame_list[[1]]
+
+for (i in 2:length(data_frame_list)){
+  big_data_frame <- rbind(big_data_frame,data_frame_list[[i]])
+}
+
+factor1 <- unique(big_data_frame$Factor1)
+factor2 <- unique(big_data_frame$Factor2)
+type <- as.character(unique(big_data_frame$Type))
+
+median.df <- data.frame(R2 = double(),
+                        Factor1 = character(),
+                        Factor2 = character(),
+                        Type = character(),
+                        stringsAsFactors = F)
+
+for (i in factor1){
+  for (j in factor2){
+    for (k in type){
+      med_val <- median(big_data_frame[big_data_frame$Factor1 == i & big_data_frame$Factor2 == j & big_data_frame$Type == k,]$R2)
+      to_add <- c(med_val,i,j,k)
+      median.df <- rbind(median.df,to_add)
+    }
+  }
+}
+
+colnames(median.df) <- c("R2","Factor1","Factor2","Type")
+
+median.df$Type <- factor(median.df$Type,
+                            levels = c("TrueIvsTrueV","FactI1vsTrueV", "FactI2vsTrueV", "FactI3vsTrueV","FactI4vsTrueV", "MiceIvsTrueV", "ObsIvsTrueV"))
+median.df$R2 <- as.double(median.df$R2)
+
+
+CompBoxPlot <- ggplot(median.df, aes(y = R2, x = Type)) +
+  geom_boxplot(notch=TRUE) +
+  scale_x_discrete(labels=c("True Correlation","One Factor","Two Factors","Three Factors","Four Factors","Mice","Ignoring Heterogeneity")) +
+  theme_classic() + 
+  xlab("Imputation Type") + 
+  ggtitle("R2 Values by Imputation Type. Two Cross Prod Factors from -1 to 1 by .25",
+          subtitle = paste0("M_0=0.6 with Block Size 10 
+          M_1 between ",low_val_1," and ",high_val_1," with block size 5, number 1 and 3
+          M_2 between ",low_val_2," and ",high_val_2," with block size 5, number 2 and 4"))
+
+
+fact_mat <- expand.grid(seq(-1,1,.25),seq(-1,1,.25))[1:15,]
+colnames(fact_mat) <- c("Factor 1","Factor 2")
+```
+
+To reiterate, the boxplots I showed last time compared different imputation methods (true correlation, 1-3 factor analysis, MICE, and ignoring heterogeneity) across 500 simulations. For each simulation, I generate data under a two factor model where both factors go from -1 to 1 with 0.25 increments. You can think of it as all combinations across a grid. Here is the first 15 combinations as an example
+
+```{r}
+fact_mat
+```
+
+There are 81 total factor combinations (9 x 9). For each factor combination I generate four data sets, for the first I remove metabolites 3-6, the second I remove metabolites 7-10, the third I remove metabolites 11-14, and for the fourth I remove metabolites 15-18. In total there are 324 (9x9x4) studies in each simulation. 
+
+For each factor combination (i.e. factor1 = -.75 and factor2 = .25), I calculate the median across all 500 studies for each imputation method. This is whats shown in the boxplot. So far, this structure is the same as before. The difference in this plot is that I included a 4$^{th}$ factor and increased the sample size of each study from 1,000 to 20,000.  
+
+As far as the correlation structure goes, $M_0$ is a block diagonal matrix with block size 10 where all the values equal 0.6. $M_1$ is block diagonal with block size 5, with only the first and third blocks, where values uniformly range from 0.3-0.4. $M_2$ is block diagonal with block size 5, with only the second and fourth blocks, where values uniformly range from 0-0.3.
+
+```{r}
+CompBoxPlot
+```
+
+As can be seen in the plot, even with the increased sample size the 3 factor model still outperforms the 2 factor model, even though the data is generated under a 2 factor model. You can also see that a 4 factor model does slighly better than the 3 factor model. From here on I will focus on the 3 factor model as its easier to deal with. 
+
+```{r, include = FALSE}
+setwd("3403FA")
+file_list <- list.files()[1:(length(list.files()) - 0)]
+
+loadings.df <- data.frame(corr = double(),
+                          pairwise = character(),
+                          seed = integer(),
+                          stringsAsFactors = F)
+
+loadings_inter.df <- data.frame(corr = double(),
+                          pairwise = character(),
+                          seed = integer(),
+                          stringsAsFactors = F)
+
+loadings_scatter.df <- data.frame(pair12 = double(),
+                                  pair13 = double(),
+                                  pair23 = double(),
+                                  seed = integer(),
+                                  stringsAsFactors = F)
+
+scores.df <- data.frame(corr = double(),
+                          pairwise = character(),
+                        seed = integer(),
+                          stringsAsFactors = F)
+
+loadings4.df <- data.frame(corr = double(),
+                          pairwise = character(),
+                          seed = integer(),
+                          stringsAsFactors = F)
+
+scores4.df <- data.frame(corr = double(),
+                          pairwise = character(),
+                        seed = integer(),
+                          stringsAsFactors = F)
+ 
+ 
+
+for (i in 1:length(file_list)){
+  load(file_list[i])
+  
+  
+  ####INTRA FACTOR
+  load_pair1 <- cor(r2.df[[3]]$loadings[,1],r2.df[[3]]$loadings[,2])
+  load_pair2 <- cor(r2.df[[3]]$loadings[,1],r2.df[[3]]$loadings[,3])
+  load_pair3 <- cor(r2.df[[3]]$loadings[,2],r2.df[[3]]$loadings[,3])
+  
+  loadings.df <- rbind(loadings.df,c(load_pair1,"12",i))
+  loadings.df <- rbind(loadings.df,c(load_pair2,"13",i))
+  loadings.df <- rbind(loadings.df,c(load_pair3,"23",i))
+  
+  loadings_scatter.df <- rbind(loadings_scatter.df,c(load_pair1,load_pair2,load_pair3,i))
+  
+  score_pair1 <- cor(r2.df[[3]]$scores[,1],r2.df[[3]]$scores[,2])
+  score_pair2 <- cor(r2.df[[3]]$scores[,1],r2.df[[3]]$scores[,3])
+  score_pair3 <- cor(r2.df[[3]]$scores[,2],r2.df[[3]]$scores[,3])
+
+  scores.df <- rbind(scores.df,c(score_pair1,"12",i))
+  scores.df <- rbind(scores.df,c(score_pair2,"13",i))
+  scores.df <- rbind(scores.df,c(score_pair3,"23",i))
+  
+  
+  ########
+  
+  # load_pair1 <- cor(r2.df[[4]]$loadings[,1],r2.df[[4]]$loadings[,2])
+  # load_pair2 <- cor(r2.df[[4]]$loadings[,1],r2.df[[4]]$loadings[,3])
+  # load_pair3 <- cor(r2.df[[4]]$loadings[,1],r2.df[[4]]$loadings[,4])
+  # load_pair4 <- cor(r2.df[[4]]$loadings[,2],r2.df[[4]]$loadings[,3])
+  # load_pair5 <- cor(r2.df[[4]]$loadings[,2],r2.df[[4]]$loadings[,4])
+  # load_pair6 <- cor(r2.df[[4]]$loadings[,3],r2.df[[4]]$loadings[,4])
+  # 
+  # loadings4.df <- rbind(loadings4.df,c(load_pair1,"12",i))
+  # loadings4.df <- rbind(loadings4.df,c(load_pair2,"13",i))
+  # loadings4.df <- rbind(loadings4.df,c(load_pair3,"14",i))
+  # loadings4.df <- rbind(loadings4.df,c(load_pair4,"23",i))
+  # loadings4.df <- rbind(loadings4.df,c(load_pair5,"24",i))
+  # loadings4.df <- rbind(loadings4.df,c(load_pair6,"34",i))
+  # 
+  # score_pair1 <- cor(r2.df[[4]]$scores[,1],r2.df[[4]]$scores[,2])
+  # score_pair2 <- cor(r2.df[[4]]$scores[,1],r2.df[[4]]$scores[,3])
+  # score_pair3 <- cor(r2.df[[4]]$scores[,1],r2.df[[4]]$scores[,4])
+  # score_pair4 <- cor(r2.df[[4]]$scores[,2],r2.df[[4]]$scores[,3])
+  # score_pair5 <- cor(r2.df[[4]]$scores[,2],r2.df[[4]]$scores[,4])
+  # score_pair6 <- cor(r2.df[[4]]$scores[,3],r2.df[[4]]$scores[,4])
+  # 
+  # scores4.df <- rbind(scores4.df,c(score_pair1,"12",i))
+  # scores4.df <- rbind(scores4.df,c(score_pair2,"13",i))
+  # scores4.df <- rbind(scores4.df,c(score_pair3,"14",i))
+  # scores4.df <- rbind(scores4.df,c(score_pair4,"23",i))
+  # scores4.df <- rbind(scores4.df,c(score_pair5,"24",i))
+  # scores4.df <- rbind(scores4.df,c(score_pair6,"34",i))
+  
+  
+  ######INTER FACTOR
+  load_pair1 <- cor(r2.df[[2]]$loadings[,1],r2.df[[3]]$loadings[,1])
+  load_pair2 <- cor(r2.df[[2]]$loadings[,1],r2.df[[3]]$loadings[,2])
+  load_pair3 <- cor(r2.df[[2]]$loadings[,1],r2.df[[3]]$loadings[,3])
+  load_pair4 <- cor(r2.df[[2]]$loadings[,2],r2.df[[3]]$loadings[,1])
+  load_pair5 <- cor(r2.df[[2]]$loadings[,2],r2.df[[3]]$loadings[,2])
+  load_pair6 <- cor(r2.df[[2]]$loadings[,2],r2.df[[3]]$loadings[,3])
+  
+  loadings_inter.df <- rbind(loadings_inter.df,c(load_pair1,"11",i))
+  loadings_inter.df <- rbind(loadings_inter.df,c(load_pair2,"12",i))
+  loadings_inter.df <- rbind(loadings_inter.df,c(load_pair3,"13",i))
+  loadings_inter.df <- rbind(loadings_inter.df,c(load_pair4,"21",i))
+  loadings_inter.df <- rbind(loadings_inter.df,c(load_pair5,"22",i))
+  loadings_inter.df <- rbind(loadings_inter.df,c(load_pair6,"23",i))
+}
+
+#######
+colnames(loadings.df) <- c("Correlation","Pairwise","Seed")
+loadings.df$Pairwise <- factor(loadings.df$Pairwise ,
+                              levels = c("12","13","23"))
+loadings.df$Correlation <- as.double(loadings.df$Correlation)
+
+colnames(scores.df) <- c("Correlation","Pairwise","Seed")
+scores.df$Pairwise <- factor(scores.df$Pairwise ,
+                              levels = c("12","13","23"))
+scores.df$Correlation <- as.double(scores.df$Correlation)
+
+colnames(loadings_scatter.df) <- c("Pair12","Pair13","Pair23","Seed")
+######
+# colnames(loadings4.df) <- c("Correlation","Pairwise","Seed")
+# loadings4.df$Pairwise <- factor(loadings4.df$Pairwise ,
+#                               levels = c("12","13","14","23","24","34"))
+# loadings4.df$Correlation <- as.double(loadings4.df$Correlation)
+# 
+# colnames(scores4.df) <- c("Correlation","Pairwise","Seed")
+# scores4.df$Pairwise <- factor(scores4.df$Pairwise ,
+#                               levels = c("12","13","14","23","24","34"))
+# scores4.df$Correlation <- as.double(scores4.df$Correlation)
+######
+colnames(loadings_inter.df) <- c("Correlation","Pairwise","Seed")
+loadings_inter.df$Pairwise <- factor(loadings_inter.df$Pairwise ,
+                              levels = c("11","12","13","21","22","23"))
+loadings_inter.df$Correlation <- as.double(loadings_inter.df$Correlation)
+loadings_inter.df$Seed <- as.integer(loadings_inter.df$Seed)
+
+# colnames(scores.df) <- c("Correlation","Pairwise","Seed")
+# scores.df$Pairwise <- factor(scores.df$Pairwise ,
+#                               levels = c("12","13","23"))
+# scores.df$Correlation <- as.double(scores.df$Correlation)
+# 
+# colnames(loadings_scatter.df) <- c("Pair12","Pair13","Pair23","Seed")
+######
+
+p1 <- ggplot(loadings.df, aes(y = Correlation, x = Pairwise)) +
+  geom_boxplot() +
+  theme_classic() + 
+  xlab("Pairwise Factors") + 
+  ggtitle("3-Factor Model Loading Correlations over 500 Simulations")
+
+
+p2 <- ggplot(scores.df, aes(y = Correlation, x = Pairwise)) +
+  geom_boxplot() +
+  theme_classic() 
+
+####
+
+# p3 <- ggplot(loadings4.df, aes(y = Correlation, x = Pairwise)) +
+#   geom_boxplot() +
+#   theme_classic()
+# p3
+# 
+# p4 <- ggplot(scores4.df, aes(y = Correlation, x = Pairwise)) +
+#   geom_boxplot() +
+#   theme_classic()
+# p4
+
+####
+
+p5 <- ggplot(loadings_inter.df, aes(y = Correlation, x = Pairwise)) +
+  geom_boxplot() +
+  theme_classic() + 
+  xlab("Pairwise Factors") + 
+  ggtitle("Factor Loadings Correlation over 500 Simulations")
+
+setwd("..")
+```
+### Intra Factor Comparison
+
+Now lets look at the correlation of the (3) factor loadings. For each of the 500 simulations, I calculated factor loading pairwise correlations and then plotted them in a boxplot. Each dot refers to a singular simulation's correlation (i.e. in simulation 1 the correlation between the first factor loadings and the second factor loadings will be a single dot in the 12 boxplot). 
+
+```{r}
+p1
+```
+
+As you can see in most of the studies, the first and second factor are strongly negatively correlated (I'll talk more about the simulations in which they aren't later). Looking specifically at the factor loadings for simulation 500 where the correlation between the first factor loadings and second equals -.8
+
+```{r}
+plot(r2.df[[3]]$loadings[,1],r2.df[[3]]$loadings[,2],
+     xlab = "Loaings for Factor 1",
+     ylab = "Loadings for Factor 2")
+```
+
+For a moment ignore the cluster at (0,0) (I'll come back to this). It looks like either the loadings for factor 1 or factor 2 are positive while the other is zero. This would mean that the factors describe the same underlying phenomena but only one is chosen at a time. But what about the cluster at (0,0)? 
+
+I think it's related to the simulations where the loadings from factor 1 and 2 aren't strongly negatively correlated. From the first plot, there are a subset of simulations where the first and second factor loadings aren't strongly negatively correlated, however in those studies the first and the third factor loadings are strongly negatively correlated. Considering only the simulations where the correlation between the first and second factor loadings are greater than -.5, here are the pairwise correlations of the first and third factor loadings
+
+```{r}
+outlier_seeds <- loadings.df[loadings.df$Pairwise=="12" & loadings.df$Correlation > -.5,]$Seed
+boxplot(loadings.df[loadings.df$Seed %in% outlier_seeds & loadings.df$Pairwise=="13",]$Correlation,
+        xlab = "13 Pairwise Loading",
+        ylab = "Correlation")
+```
+
+As you can see most of the correlations are close to -.8. 
+
+In conclusion I think there are two different label switching issues going on. In most of the simulations loadings for factors 1 and 2 are strongly negatively correlated, meaning that only factor 1 or factor 2 is used at a time. In simulations where that isn't the case loadings for factors 1 and 3 are strongly negatively correlated. In essence this three factor model is still boiling down to a 2 factor model in both cases. 
+
+Despite this I don't really have a sense for why this would be increasing the r2 value in the three factor model above the two factor model. Perhaps because of this added flexibility its able to predict some of the random noise? 
+
+#### Inter Factor Comparison
+
+Now lets look at the correlations of the 2 and 3 factor model loadings. For each of the 500 simulations, I calculated factor loading pairwise correlations between the two models and then plotted them in a boxplot. Each dot refers to a singular simulation's correlation (i.e. in simulation 1 the correlation between the first factor of the 2 factor model and the third factor of the 3 factor model is a single dot in the 13 boxplot)
+
+```{r}
+p5
+```
+
+The first factor from both the 2 factor and 3 factor models are always strongly correlated, but thats not always the case for the second factors. Lets look at the case when the second factor of the 2 factor model is strongly correlated with the second factor of the 3 factor model (roughly 450/500 simulations where the correlation is above 0.65). 
+
+```{r}
+noutlier_seeds <- as.integer(loadings_inter.df[loadings_inter.df$Pairwise == "22" & loadings_inter.df$Correlation>=.65,]$Seed)
+ggplot(loadings_inter.df[loadings_inter.df$Seed %in% noutlier_seeds,], aes(y = Correlation, x = Pairwise)) +
+  geom_boxplot() +
+  theme_classic() + 
+  xlab("Pairwise Factors") + 
+  ggtitle("Factor Loadings Correlation over 500 Simulations",subtitle = "When second factors are strongly correlated")
+```
+
+Here are the mean (and var) values for the loadings of factor 3 (of the 3 factor model) when the second factors are correlated between the 2 and 3 factor model
+
+```{r}
+setwd("3403FA/")
+data_frame_name_list <- list.files()[1:(length(list.files()) -0)]
+data_frame_name_list <- mixedsort(sort(data_frame_name_list))
+
+noutlier_fact3_mean <- c()
+noutlier_fact3_var <- c()
+
+for (i in noutlier_seeds){
+  load(data_frame_name_list[i])
+  
+  noutlier_fact3_mean <-c(noutlier_fact3_mean,mean(r2.df[[3]]$loadings[,3]))
+  noutlier_fact3_var <-c(noutlier_fact3_var,var(r2.df[[3]]$loadings[,3]))
+  # noutlier_fact3_median <-c(noutlier_fact3_median,median(r2.df[[3]]$loadings[,2]))
+}
+
+boxplot(noutlier_fact3_mean,
+        main = "Mean Loadings for Non-outlier Factor 3 in 3 Factor Model over 500 simulations",
+        xlab = "Factor 3")
+
+boxplot(noutlier_fact3_var,
+        main = "Variance of Loadings for Non-outlier Factor 3 in 3 Factor Model over 500 simulations",
+        xlab = "Factor 3")
+
+plot(sort(noutlier_fact3_mean),
+     main = "Mean loadings for Non-outlier Factor 3 in 3 Factor Model over 500 simulations",
+     ylab = "Mean loadings for factor 3")
+# boxplot(noutlier_fact3_median)
+```
+Now lets examine when the second factors of the 2 factor and 3 factor model are not highly correlated (correlation < 0.65 around 50/500 simulations)
+
+```{r}
+outlier_seeds <- as.integer(loadings_inter.df[loadings_inter.df$Pairwise == "22" & loadings_inter.df$Correlation<.65,]$Seed)
+ggplot(loadings_inter.df[loadings_inter.df$Seed %in% outlier_seeds,], aes(y = Correlation, x = Pairwise)) +
+  geom_boxplot() +
+  theme_classic() + 
+  xlab("Pairwise Factors") + 
+  ggtitle("Factor Loadings Correlation over 500 Simulations",subtitle = "When second factors are not strongly correlated")
+```
+
+As you can see the second factor of the 2 factor model is more correlated with the 3rd factor of the 3 factor model now. However, the overall mean loadings for the third factor when the second factor of the 2 and 3 factor model are not correlated is still fairly low. 
+```{r}
+setwd("3403FA")
+# data_frame_name_list <- list.files()[1:(length(list.files()) -0)]
+# data_frame_name_list <- mixedsort(sort(data_frame_name_list))
+
+outlier_fact3_mean <- c()
+outlier_fact3_var <- c()
+
+for (i in outlier_seeds){
+  load(data_frame_name_list[i])
+  
+  outlier_fact3_mean <-c(outlier_fact3_mean,mean(r2.df[[3]]$loadings[,3]))
+  outlier_fact3_var <-c(outlier_fact3_var,var(r2.df[[3]]$loadings[,3]))
+}
+
+boxplot(outlier_fact3_mean, 
+        main = "Mean Loadings for Outlier Factor 3 in 3 Factor Model over 500 simulations",
+        xlab = "Factor 3")
+
+boxplot(outlier_fact3_var, 
+        main = "Variance of Loadings for Outlier Factor 3 in 3 Factor Model over 500 simulations",
+        xlab = "Factor 3")
+
+plot(sort(outlier_fact3_mean),
+     main = "Mean loadings for outlier Factor 3 in 3 Factor Model over 500 simulations",
+     ylab = "Mean loadings for factor 3")
+# boxplot(outlier_fact3_median)
+```
+```{r}
+plot(r2.df[[2]]$loadings[,2],r2.df[[3]]$loadings[,3],xlab = "Factor 2 (from 2 factor model)",ylab = "Factor 3 (from 3 factor model)",
+     main = "Comparing Factors When Correlation Btwn Factor2 is low ")
+plot(r2.df[[2]]$loadings[,1],r2.df[[3]]$loadings[,3],xlab = "Factor 1 (from 2 factor model)",ylab = "Factor 3 (from 3 factor model)",
+     main = "Comparing Factors When Correlation Btwn Factor2 is low ")
+```
+
+As you can see there are roughly two clusters for the mean value of the third factor (between 0-.1 and above 0.2). Only considering cases where the mean value of the third factor is above 0.2 here is the inter 2 factor model/3 factor model correlation
+```{r}
+setwd("3403FA/")
+data_frame_name_list <- list.files()[1:(length(list.files()) -0)]
+data_frame_name_list <- mixedsort(sort(data_frame_name_list))
+
+fact3_outlier_seeds <- c()
+
+for (i in 1:500){
+  load(data_frame_name_list[i])
+  
+  if (mean(r2.df[[3]]$loadings[,3]) > .15){
+    fact3_outlier_seeds <- c(fact3_outlier_seeds,i)
+  }
+}
+
+ggplot(loadings_inter.df[loadings_inter.df$Seed %in% fact3_outlier_seeds,], aes(y = Correlation, x = Pairwise)) +
+  geom_boxplot() +
+  theme_classic() + 
+  xlab("Pairwise Factors") + 
+  ggtitle("Factor Loadings Correlation over 500 Simulations",
+          subtitle = "When mean loading for factor 3 is > 0.2")
+setwd("..")
+```
+Zooming into a single simulation
+
+```{r}
+setwd("3403FA")
+# load(data_frame_name_list[noutlier_seeds[length(noutlier_seeds)]])
+# plot(r2.df[[3]]$loadings[,1],r2.df[[3]]$loadings[,3],xlab = "Factor 1",ylab = "Factor 3")
+# plot(r2.df[[3]]$loadings[,2],r2.df[[3]]$loadings[,3],xlab = "Factor 2",ylab = "Factor 3")
+# 
+# load(data_frame_name_list[outlier_seeds[length(outlier_seeds)]])
+# plot(r2.df[[3]]$loadings[,1],r2.df[[3]]$loadings[,3],xlab = "Factor 1",ylab = "Factor 3")
+# plot(r2.df[[3]]$loadings[,2],r2.df[[3]]$loadings[,3],xlab = "Factor 2",ylab = "Factor 3")
+
+load(data_frame_name_list[fact3_outlier_seeds[length(fact3_outlier_seeds)]])
+plot(r2.df[[2]]$loadings[,2],r2.df[[3]]$loadings[,3],xlab = "Factor 2 (from 2 factor model)",ylab = "Factor 3 (from 3 factor model)",
+     main = "Comparing Factors When mean of factor 3 > .2")
+plot(r2.df[[2]]$loadings[,1],r2.df[[3]]$loadings[,3],xlab = "Factor 1 (from 2 factor model)",ylab = "Factor 3 (from 3 factor model)",
+     main = "Comparing Factors When mean of factor 3 > .2")
+```
